@@ -1,0 +1,8 @@
+config.local.json
+.env
+*.local.*
+.DS_Store
+node_modules/
+# Herdr rewrites these on every start
+mods/*/jsconfig.json
+mods/*/*.d.ts

@@ -1,0 +1,20 @@
+{
+  "tracker": {
+    "kind": "jira",
+    "baseUrl": "https://your-org.atlassian.net",
+    "email": "you@example.com",
+    "keychainService": "agent-deck-jira",
+    "projectKey": "ABC",
+    "candidateJql": "project = ABC AND statusCategory = \"To Do\" AND assignee = currentUser() ORDER BY rank"
+  },
+  "repos": {
+    "my-api": "~/dev/my-api"
+  },
+  "worktree": {
+    "command": ["wt", "new", "{branch}", "--no-code"]
+  },
+  "agent": {
+    "command": ["claude", "/ticket-start {ticket}"],
+    "maxParallel": 3
+  }
+}
