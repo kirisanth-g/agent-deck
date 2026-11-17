@@ -37,6 +37,7 @@ The person approves a proposal in the Queue panel, and the panel then starts a s
       "repos": ["web-api", "web-app"],
       "branch": "ABC-123",
       "size": "small",
+      "details": "**What it asks**\n\nTwo or three sentences.\n\n**Done when**\n\n- The first check\n- The second check",
       "state": "proposed"
     }
   ]
@@ -44,7 +45,13 @@ The person approves a proposal in the Queue panel, and the panel then starts a s
 ```
 
 - `branch` is the ticket key alone. It must not contain `/`.
+- `reason` is one sentence. The panel shows it on the card, so keep it under 100 characters.
 - `size` is `small`, `medium` or `large`.
+- `details` is Markdown that the panel shows when the person opens the proposal. Write these parts, each under a bold heading, and keep the whole under 250 words:
+  - **What it asks**: the change, in plain words.
+  - **Done when**: the acceptance checks from the ticket, as a list.
+  - **What exists already**: the code or the earlier work that this builds on, if you found any.
+  - **Open questions**: what the ticket does not say and the person must decide. Leave the part out when there is none.
 - `state` is `proposed` for a new entry. The panel sets `started` and `skipped`; keep those values.
 - Remove a `started` entry only when its pull request is merged or closed.
 
