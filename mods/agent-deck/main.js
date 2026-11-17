@@ -1,19 +1,48 @@
-// agent-deck: the repos registered with `wt`, their worktrees, and the Herdr space for each.
+// agent-deck: your repos, their worktrees, and the Herdr space for each.
+// The repos come from `wt repo ls`, plus `repos.add` and minus `repos.hide` in the config file.
 
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
-import { exec, spaces, panes, run, theme, notify, checking } from "herdr";
+import { exec, spaces, panes, run, theme, notify, checking, home, readTextFile } from "herdr";
+
+const CONFIG = ".config/agent-deck/config.json";
 
 const out = (r) => (r.stdout ?? "").trim();
 
+// The config file is optional. A file that is not valid JSON is an error the panel shows.
+async function config() {
+  const raw = await readTextFile(`${home()}/${CONFIG}`);
+  if (raw === null) return {};
+  try { return JSON.parse(raw); } catch { throw new Error(`~/${CONFIG} is not valid JSON.`); }
+}
+
 // `wt repo ls` prints a table: name, path, domain, ports. The first line is the header.
+// A repo that wt does not know has `wt: false`: its worktrees are made with git alone.
 async function repos() {
+  const { add = [], hide = [] } = (await config()).repos ?? {};
   const r = await exec("wt", ["repo", "ls"]);
-  if (r.code !== 0) throw new Error(out(r) || (r.stderr ?? "").trim() || "wt repo ls failed");
-  return out(r).split("\n").slice(1)
+  const list = r.code !== 0 ? [] : out(r).split("\n").slice(1)
     .map((line) => line.trim().split(/\s+/))
     .filter((cols) => cols.length >= 2 && cols[1].startsWith("/"))
-    .map(([name, path]) => ({ name, path }));
+    .map(([name, path]) => ({ name, path, wt: true }));
+  for (const entry of add) {
+    const path = String(entry).replace(/^~(?=\/|$)/, home()).replace(/\/+$/, "");
+    if (!list.some((repo) => repo.path === path)) list.push({ name: path.split("/").pop(), path, wt: false });
+  }
+  return list.filter((repo) => !hide.includes(repo.name));
+}
+
+// Makes a worktree beside the repo, in `<repo>.worktrees/<branch>`, the place wt uses.
+// A branch that exists is checked out. A new branch starts from the fetched default branch.
+async function gitWorktree(repo, branch) {
+  const git = (args, timeout) => exec("git", args, { cwd: repo.path, ...(timeout ? { timeout } : {}) });
+  await git(["fetch", "origin"], 120000);
+  const path = `${repo.path}.worktrees/${branch}`;
+  const known = (await git(["rev-parse", "--verify", "--quiet", `refs/heads/${branch}`])).code === 0
+    || (await git(["rev-parse", "--verify", "--quiet", `refs/remotes/origin/${branch}`])).code === 0;
+  const head = await git(["symbolic-ref", "--short", "refs/remotes/origin/HEAD"]);
+  const base = head.code === 0 ? out(head) : "HEAD";
+  return git(known ? ["worktree", "add", path, branch] : ["worktree", "add", "-b", branch, path, base], 120000);
 }
 
 // Every checkout of a repo, the main one first: { path, branch, main }.
@@ -85,16 +114,19 @@ export default class AgentDeck extends View {
     const repo = this.repos.find((r) => r.name === this.adding);
     const branch = this.branch.trim();
     if (!repo || !branch || this.busy) return;
-    this.busy = `wt new ${branch}`;
+    if (branch.includes("/")) return notify({ title: "New worktree", body: "Use '-' in the branch name, not '/'.", level: "error" });
+    this.busy = repo.wt ? `wt new ${branch}` : `git worktree add ${branch}`;
     cx.notify();
     cx.spawn(async (cx) => {
       try {
         // wt new copies the env files and the Claude setup, and registers the dev host.
-        const r = await exec("wt", ["new", branch, "--no-code"], { cwd: repo.path, timeout: 600000 });
-        if (r.code !== 0) throw new Error((r.stderr ?? "").trim() || out(r) || "wt new failed");
+        const r = repo.wt
+          ? await exec("wt", ["new", branch, "--no-code"], { cwd: repo.path, timeout: 600000 })
+          : await gitWorktree(repo, branch);
+        if (r.code !== 0) throw new Error((r.stderr ?? "").trim() || out(r) || "The worktree was not made.");
         repo.checkouts = await checkouts(repo);
         const made = repo.checkouts.find((c) => c.branch === branch);
-        if (!made) throw new Error(`wt new finished, but no worktree is on ${branch}.`);
+        if (!made) throw new Error(`The command finished, but no worktree is on ${branch}.`);
         this.adding = null;
         this.open(repo, made);
       } catch (err) {
@@ -137,7 +169,7 @@ export default class AgentDeck extends View {
 
     return v_flex().id("agent-deck").size_full().bg(t.chrome).p(8).gap(10).text_size(12.5).overflow_y_scrollbar()
       .when(Boolean(this.error), (el) => el.child(div().text_color(t.blocked).child(this.error)))
-      .when(!this.error && this.repos.length === 0, (el) => el.child(div().text_color(t.dim).child("No repos yet. Register one with `wt repo add`.")))
+      .when(!this.error && this.repos.length === 0, (el) => el.child(div().text_color(t.dim).child("No repos yet. Register one with `wt repo add`, or list it in ~/.config/agent-deck/config.json.")))
       .children(this.repos.map(group));
   }
 }

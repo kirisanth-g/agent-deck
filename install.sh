@@ -1,6 +1,6 @@
 #!/bin/sh
 # Link the agent-deck mod into the Herdr app and add its panel to a personal layout.
-# Safe to run again: it skips each step that is already done.
+# Run it again after a change to the mod: it skips each finished step and restarts the panel.
 set -eu
 
 app_home="${HERDR_APP_HOME:-$HOME/.config/herdr-app}"
@@ -48,5 +48,7 @@ with open(path, "w") as f:
 print("Added the Repos panel to the layout.")
 EOF
 
+# Herdr does not see an edit made through the link. A layout switch starts the mod again.
+herdr-app do layout.switch "{\"name\":\"main\"}" >/dev/null
 herdr-app do layout.switch "{\"name\":\"$layout\"}" >/dev/null
 echo "Done. Herdr shows the $layout layout. Switch back with: herdr-app do layout.switch '{\"name\":\"main\"}'"

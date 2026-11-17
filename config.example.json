@@ -8,13 +8,26 @@
     "candidateJql": "project = ABC AND statusCategory = \"To Do\" AND assignee = currentUser() ORDER BY rank"
   },
   "repos": {
-    "my-api": "~/dev/my-api"
+    "add": [
+      "~/dev/my-tools"
+    ],
+    "hide": [
+      "old-repo"
+    ]
   },
   "worktree": {
-    "command": ["wt", "new", "{branch}", "--no-code"]
+    "command": [
+      "wt",
+      "new",
+      "{branch}",
+      "--no-code"
+    ]
   },
   "agent": {
-    "command": ["claude", "/ticket-start {ticket}"],
+    "command": [
+      "claude",
+      "/ticket-start {ticket}"
+    ],
     "maxParallel": 3
   }
 }

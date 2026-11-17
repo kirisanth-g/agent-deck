@@ -8,10 +8,12 @@ It reads your issue tracker and proposes the next tickets to work on. When you a
 
 ## What works now
 
-The **Repos** panel lists each repo registered with [`wt`](#requirements) and its worktrees.
+The **Repos** panel lists your repos and their worktrees. The repos are the ones registered with [`wt`](#requirements), plus `repos.add` and minus `repos.hide` from the config file.
 
 - Click a worktree to open it as a Herdr space, or to go to the space that already shows it.
-- **+ worktree** asks for a branch, runs `wt new <branch> --no-code` in that repo, and opens the new worktree as a space.
+- **+ worktree** asks for a branch, makes the worktree, and opens it as a space.
+  - In a repo that `wt` knows, it runs `wt new <branch> --no-code`.
+  - In any other repo, it runs `git worktree add` into `<repo>.worktrees/<branch>`. A new branch starts from the fetched default branch.
 
 ## Install
 
@@ -20,6 +22,8 @@ The **Repos** panel lists each repo registered with [`wt`](#requirements) and it
 ```
 
 The script links the mod into `~/.config/herdr-app/mods/` and adds the panel to a personal layout named `deck`. Herdr does not allow a structure change on a shipped layout, so the script clones `main`.
+
+Run the script again after you change the mod. It restarts the panel.
 
 ## Planned
 
@@ -34,12 +38,14 @@ The script links the mod into `~/.config/herdr-app/mods/` and adds the panel to 
 ```
 mods/agent-deck/      the Herdr mod
 install.sh            links the mod into Herdr and adds its panel to a layout
-config.example.json   the settings agent-deck reads; copy to config.local.json
+config.example.json   an example of ~/.config/agent-deck/config.json
 ```
 
 ## Configuration
 
-Copy `config.example.json` to `config.local.json` and fill it in. `config.local.json` is ignored by git.
+agent-deck reads `~/.config/agent-deck/config.json`. Start from `config.example.json`. The file is optional, and it stays outside this repository.
+
+Only the `repos` section is read today. The other sections are for the planned ticket queue.
 
 Keep the tracker token out of files. agent-deck reads it from the macOS Keychain:
 
