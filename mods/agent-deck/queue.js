@@ -4,7 +4,7 @@
 
 import { div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { exec, run, spaces, panes, theme, notify, checking, home, appHome, readTextFile, writeTextFile, watchFolder, openOverlay, shared, setShared } from "herdr";
+import { exec, run, spaces, panes, theme, notify, checking, home, appHome, readTextFile, writeTextFile, watchFolder, openOverlay, shared, setShared, nextCommand } from "herdr";
 import { config, repos, checkouts, makeWorktree, make } from "./lib.js";
 
 const CONTROLLER = "Controller";
@@ -12,6 +12,14 @@ const DEFAULT_TASK = "/ticket-start {ticket}";
 const DEFAULT_CAP = 3;
 
 const BUSY = "agent-deck.busy"; // shared by every view: ticket key -> what runs for it now
+// A dialog closes before its work can finish, and Herdr cancels the work of a closed view.
+// So a dialog leaves a request here, and the Queue view, which stays open, does the work.
+const REQUEST = "agent-deck.request"; // { key, action: "approve" | "skip" } or null
+
+export function request(key, action) {
+  setShared(REQUEST, { key, action });
+  run("agent-deck.request");
+}
 
 export const dir = () => `${appHome()}/data/agent-deck`;
 const file = () => `${dir()}/queue.json`;
@@ -92,8 +100,16 @@ export class Queue {
     this.queue = { proposals: [] };
     this.error = "";
     if (checking()) return;
+    // Shared state outlives the app. No work survives a restart, so no ticket is busy now.
+    setShared(BUSY, {});
     this.load(cx);
-    cx.timer.every(10000, (cx) => this.load(cx));
+    cx.timer.every(10000, (cx) => { this.load(cx); this.serve(cx); });
+    cx.spawn(async (cx) => {
+      for (;;) {
+        await nextCommand();
+        this.serve(cx);
+      }
+    });
     cx.spawn(async (cx) => {
       for (;;) {
         await watchFolder(dir());
@@ -136,6 +152,15 @@ export class Queue {
       }
       cx.notify();
     });
+  }
+
+  // Does what a dialog asked for. The timer calls this too, in case the command did not arrive.
+  serve(cx) {
+    const asked = shared(REQUEST);
+    if (!asked) return;
+    setShared(REQUEST, null);
+    const p = this.queue.proposals.find((q) => q.key === asked.key);
+    if (p) this.act(asked.action === "skip" ? skip : approve, p, cx);
   }
 
   act(what, p, cx) {

@@ -3,7 +3,7 @@
 import { div } from "gpui-kit";
 import { v_flex, h_flex, TextView } from "gpui-base";
 import { exec, run, theme, props, closeOverlay, checking } from "herdr";
-import { readQueue, approve, skip, busy, spaceFor, button, message } from "./queue.js";
+import { readQueue, request, busy, spaceFor, button, message } from "./queue.js";
 
 export class Detail {
   init(cx) {
@@ -26,11 +26,10 @@ export class Detail {
 
   close() { closeOverlay(props()?.overlay); }
 
-  // The dialog closes at once. The Queue panel shows the progress.
-  act(what, cx) {
-    const p = this.proposal;
+  // The Queue panel does the work and shows the progress: this dialog closes at once.
+  act(action) {
+    request(this.key, action);
     this.close();
-    cx.spawn(async () => { await what(p); });
   }
 
   render(_cx) {
@@ -62,8 +61,8 @@ export class Detail {
         .when(!p.details, (el) => el.child(div().text_color(t.dim).child("The controller wrote no details for this ticket. Press Find next work for a new list with details."))))
       .child(h_flex().gap(8).items_center()
         .when(state === "proposed" && !busy(p.key), (el) => el
-          .child(button(t, "detail-ok", "Approve", true, (cx) => this.act(approve, cx)))
-          .child(button(t, "detail-no", "Skip", false, (cx) => this.act(skip, cx))))
+          .child(button(t, "detail-ok", "Approve", true, () => this.act("approve")))
+          .child(button(t, "detail-no", "Skip", false, () => this.act("skip"))))
         .when(Boolean(busy(p.key)), (el) => el.child(div().text_color(t.working).child(`${busy(p.key)} …`)))
         .when(state === "started" && Boolean(space), (el) => el
           .child(button(t, "detail-go", "Go to its space", true, () => { run("space.select", { id: space.id }); this.close(); })))
