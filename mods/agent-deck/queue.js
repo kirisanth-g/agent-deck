@@ -72,8 +72,9 @@ export async function approve(p) {
 
     const [first, ...rest] = places;
     const task = String(cfg.agent?.task ?? DEFAULT_TASK).replaceAll("{ticket}", p.key);
-    const argv = ["claude", ...(rest.length ? ["--add-dir", ...rest.map((r) => r.path)] : [])];
-    const made = await make("space.new", { name: p.key, folder: first.path, tab: first.name, argv, task, focus: false });
+    // The first message goes before --add-dir: that flag takes every word after it as a folder.
+    const argv = ["claude", task, ...(rest.length ? ["--add-dir", ...rest.map((r) => r.path)] : [])];
+    const made = await make("space.new", { name: p.key, folder: first.path, tab: first.name, argv, focus: false });
     for (const other of rest) await make("tab.new", { space: made.space, name: other.name, folder: other.path, focus: false });
     await mark(p.key, "started");
     notify({ title: `${p.key} started`, body: places.map((x) => x.name).join(", "), level: "success", action: { name: "space.select", args: { id: made.space } } });
