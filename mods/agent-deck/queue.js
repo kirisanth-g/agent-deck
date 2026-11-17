@@ -5,7 +5,7 @@
 import { div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { exec, run, spaces, panes, theme, notify, checking, home, appHome, readTextFile, writeTextFile, watchFolder, openOverlay, shared, setShared, nextCommand } from "herdr";
-import { config, repos, checkouts, makeWorktree, make } from "./lib.js";
+import { config, repos, checkouts, makeWorktree, make, out } from "./lib.js";
 
 const CONTROLLER = "Controller";
 const DEFAULT_TASK = "/ticket-start {ticket}";
@@ -48,6 +48,34 @@ export async function mark(key, state) {
   await writeTextFile(file(), `${JSON.stringify({ ...queue, proposals }, null, 2)}\n`, raw);
 }
 
+const pause = (ms) => exec("sleep", [String(ms / 1000)]);
+
+// Answers "Yes" on Claude Code's trust screen for a new worktree, when agent.acceptTrust is on.
+// Claude Code asks once for each new folder that carries its own pre-approved permissions.
+// Resolves with true when it answered. It presses nothing unless the screen shows the question.
+async function acceptTrust(terminal) {
+  const YES = "Yes, I trust this folder";
+  const screen = async () => out(await exec("hc", ["read", terminal, "--lines", "60"]));
+  for (let tries = 0; tries < 15; tries++) {
+    await pause(1000);
+    const text = await screen();
+    if (!text.includes(YES)) {
+      // The prompt box means Claude Code started with no question.
+      if (text.includes("? for shortcuts") || /\n\s*❯ /.test(text)) return false;
+      continue;
+    }
+    const chosen = () => new RegExp(`❯\\s*${YES}`);
+    if (!chosen().test(text)) {
+      await exec("hc", ["keys", terminal, "down"]);
+      await pause(400);
+      if (!chosen().test(await screen())) return false;
+    }
+    await exec("hc", ["keys", terminal, "enter"]);
+    return true;
+  }
+  return false;
+}
+
 // Makes a worktree in each repo of the proposal, then one space with a tab for each repo,
 // and one Claude session that sees every worktree.
 export async function approve(p) {
@@ -67,7 +95,7 @@ export async function approve(p) {
       if (!repo) throw new Error(`The repo ${name} is not in the Repos list.`);
       setBusy(p.key, `worktree in ${name}`);
       const have = (await checkouts(repo)).find((c) => c.branch === p.branch);
-      places.push({ name, path: (have ?? (await makeWorktree(repo, p.branch))).path });
+      places.push({ name, path: (have ?? (await makeWorktree(repo, p.branch))).path, isNew: !have });
     }
 
     const [first, ...rest] = places;
@@ -76,6 +104,11 @@ export async function approve(p) {
     const argv = ["claude", task, ...(rest.length ? ["--add-dir", ...rest.map((r) => r.path)] : [])];
     const made = await make("space.new", { name: p.key, folder: first.path, tab: first.name, argv, focus: false });
     for (const other of rest) await make("tab.new", { space: made.space, name: other.name, folder: other.path, focus: false });
+    // Only a worktree that this run made: an older folder may hold changes the person has not seen.
+    if (cfg.agent?.acceptTrust === true && first.isNew && made.terminal) {
+      setBusy(p.key, "trust screen");
+      await acceptTrust(made.terminal);
+    }
     await mark(p.key, "started");
     notify({ title: `${p.key} started`, body: places.map((x) => x.name).join(", "), level: "success", action: { name: "space.select", args: { id: made.space } } });
   } catch (err) {

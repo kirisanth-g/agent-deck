@@ -16,6 +16,7 @@
   },
   "agent": {
     "task": "/ticket-start {ticket}",
-    "maxParallel": 3
+    "maxParallel": 3,
+    "acceptTrust": false
   }
 }

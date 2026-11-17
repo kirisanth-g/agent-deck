@@ -63,6 +63,9 @@ agent-deck reads `~/.config/agent-deck/config.json`. Start from `config.example.
 | `controller.folder` | The folder the controller session starts in. Default: your home folder. |
 | `agent.task` | The first message of a ticket session. `{ticket}` is the ticket key. Default: `/ticket-start {ticket}`. |
 | `agent.maxParallel` | The cap on ticket sessions that run at once. Default: 3. |
+| `agent.acceptTrust` | `true`: answer "Yes" on Claude Code's trust screen for a worktree that agent-deck just made. Default: off. |
+
+Claude Code asks whether you trust a new git folder that carries its own pre-approved permissions, and a worktree with a copied `.claude/settings.local.json` is one. With `agent.acceptTrust` off, go to the ticket's space and answer the question. Turn it on only when every repo in the list is yours: you no longer see what the folder pre-approves.
 
 The controller reaches the tracker through the tools of its Claude Code session, for example the Atlassian connector. agent-deck stores no tracker token.
 
