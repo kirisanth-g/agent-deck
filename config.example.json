@@ -1,11 +1,7 @@
 {
   "tracker": {
     "kind": "jira",
-    "baseUrl": "https://your-org.atlassian.net",
-    "email": "you@example.com",
-    "keychainService": "agent-deck-jira",
-    "projectKey": "ABC",
-    "candidateJql": "project = ABC AND statusCategory = \"To Do\" AND assignee = currentUser() ORDER BY rank"
+    "candidateJql": "project = ABC AND assignee = currentUser() AND sprint in openSprints() AND statusCategory = \"To Do\" ORDER BY rank"
   },
   "repos": {
     "add": [
@@ -15,19 +11,11 @@
       "old-repo"
     ]
   },
-  "worktree": {
-    "command": [
-      "wt",
-      "new",
-      "{branch}",
-      "--no-code"
-    ]
+  "controller": {
+    "folder": "~/dev/my-api"
   },
   "agent": {
-    "command": [
-      "claude",
-      "/ticket-start {ticket}"
-    ],
+    "task": "/ticket-start {ticket}",
     "maxParallel": 3
   }
 }

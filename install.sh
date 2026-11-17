@@ -1,5 +1,6 @@
 #!/bin/sh
-# Link the agent-deck mod into the Herdr app and add its panel to a personal layout.
+# Link the agent-deck mod into the Herdr app, add its panels to a personal layout,
+# and link the controller skill into Claude Code.
 # Run it again after a change to the mod: it skips each finished step and restarts the panel.
 set -eu
 
@@ -36,17 +37,29 @@ def find(node, node_id):
             return hit
     return None
 
-if find(doc, "agent-deck"):
-    sys.exit(0)
 lists = find(doc, "sidebar-lists")
 if lists is None:
-    sys.exit("The layout has no sidebar-lists column. Add the agent-deck block by hand.")
-block = {"id": "agent-deck", "type": "block", "content": {"mod": "agent-deck"}, "size": {"weight": 2}}
-lists["children"].insert(1, block)
-with open(path, "w") as f:
-    json.dump(doc, f, indent=2, ensure_ascii=False)
-print("Added the Repos panel to the layout.")
+    sys.exit("The layout has no sidebar-lists column. Add the agent-deck blocks by hand.")
+added = []
+for node_id, view in (("agent-deck-queue", "queue"), ("agent-deck", "repos")):
+    if find(doc, node_id):
+        continue
+    block = {"id": node_id, "type": "block", "content": {"mod": "agent-deck", "props": {"view": view}}, "size": {"weight": 2}}
+    lists["children"].insert(1, block)
+    added.append(view)
+if added:
+    with open(path, "w") as f:
+        json.dump(doc, f, indent=2, ensure_ascii=False)
+    print("Added to the layout: " + ", ".join(added) + ".")
 EOF
+
+mkdir -p "$app_home/data/agent-deck"
+
+skills="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills"
+if [ -d "$skills" ] && [ ! -e "$skills/deck-next" ]; then
+  ln -s "$repo/skills/deck-next" "$skills/deck-next"
+  echo "Linked the deck-next skill."
+fi
 
 # Herdr does not see an edit made through the link. A layout switch starts the mod again.
 herdr-app do layout.switch "{\"name\":\"main\"}" >/dev/null

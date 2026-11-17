@@ -4,11 +4,23 @@ agent-deck is a work queue and control panel for coding agents. It runs as a mod
 
 It reads your issue tracker and proposes the next tickets to work on. When you approve a ticket, it starts a Claude Code session for that ticket in its own git worktree. The session then works on its own. agent-deck alerts you when a session needs your input.
 
-**Status:** early. The Repos panel works. The ticket queue, the pins and the alerts are not built yet.
+**Status:** early. The Repos panel, the Queue panel and the controller skill exist. Herdr does not yet show the status of a Claude Code session, so there are no alerts yet.
 
-## What works now
+## How it works
 
-The **Repos** panel lists your repos and their worktrees. The repos are the ones registered with [`wt`](#requirements), plus `repos.add` and minus `repos.hide` from the config file.
+```
+Controller (a Claude session)  ->  queue file  ->  Queue panel  ->  you approve  ->  ticket space
+```
+
+1. **Find next work.** The button on the Queue panel starts the controller, a Claude Code session that runs the `deck-next` skill. The controller reads the tracker, drops the tickets that are in flight or blocked, and writes its proposals to the queue file.
+2. **Approve or skip.** Each proposal shows the ticket, the reason it is next, and the repos it changes. Nothing starts without **Approve**.
+3. **Start.** On Approve, agent-deck makes a worktree in each repo of the ticket. It opens one space named after the ticket, with a tab for each repo, and starts one Claude Code session there. The session gets the other worktrees with `--add-dir`, so it sees every repo of the ticket.
+
+## The panels
+
+**Queue** lists the proposals and the tickets in progress. A click on a ticket in progress goes to its space.
+
+**Repos** lists your repos and their worktrees. The repos are the ones registered with [`wt`](#requirements), plus `repos.add` and minus `repos.hide` from the config file.
 
 - Click a worktree to open it as a Herdr space, or to go to the space that already shows it.
 - **+ worktree** asks for a branch, makes the worktree, and opens it as a space.
@@ -21,23 +33,22 @@ The **Repos** panel lists your repos and their worktrees. The repos are the ones
 ./install.sh
 ```
 
-The script links the mod into `~/.config/herdr-app/mods/` and adds the panel to a personal layout named `deck`. Herdr does not allow a structure change on a shipped layout, so the script clones `main`.
+The script links the mod into `~/.config/herdr-app/mods/`, adds the two panels to a personal layout named `deck`, and links the `deck-next` skill into `~/.claude/skills/`. Herdr does not allow a structure change on a shipped layout, so the script clones `main`.
 
-Run the script again after you change the mod. It restarts the panel.
+Run the script again after you change the mod. It restarts the panels.
 
-## Planned
+## Not built yet
 
-1. **Propose.** The queue panel reads the tracker and lists candidate tickets. Nothing starts without your approval.
-2. **Start.** On **Approve**, agent-deck creates a worktree and starts `claude` in a Herdr terminal in that worktree.
-3. **Plan.** The session reads the ticket and the code, then presents a plan. Herdr shows the session as blocked until you approve the plan.
-4. **Track.** Each agent card shows its status (working, blocked, done) and pins the tickets and pull requests it touches.
-5. **Alert.** A blocked agent raises a notification, a sound and a Dock badge.
+- **Status and alerts.** FUTURE: a Claude Code hook that reports working, blocked and done to Herdr.
+- **Pins.** FUTURE: the tickets and pull requests of each session, on its row.
+- **Automatic refill.** FUTURE: run the controller when a session finishes.
 
 ## Layout
 
 ```
-mods/agent-deck/      the Herdr mod
-install.sh            links the mod into Herdr and adds its panel to a layout
+mods/agent-deck/      the Herdr mod: the Queue view and the Repos view
+skills/deck-next/     the controller skill for Claude Code
+install.sh            links the mod and the skill, and adds the panels to a layout
 config.example.json   an example of ~/.config/agent-deck/config.json
 ```
 
@@ -45,13 +56,17 @@ config.example.json   an example of ~/.config/agent-deck/config.json
 
 agent-deck reads `~/.config/agent-deck/config.json`. Start from `config.example.json`. The file is optional, and it stays outside this repository.
 
-Only the `repos` section is read today. The other sections are for the planned ticket queue.
+| Key | Use |
+| --- | --- |
+| `tracker.candidateJql` | The search the controller runs for candidate tickets. |
+| `repos.add`, `repos.hide` | Repo folders to add to the Repos list, and repo names to hide. |
+| `controller.folder` | The folder the controller session starts in. Default: your home folder. |
+| `agent.task` | The first message of a ticket session. `{ticket}` is the ticket key. Default: `/ticket-start {ticket}`. |
+| `agent.maxParallel` | The cap on ticket sessions that run at once. Default: 3. |
 
-Keep the tracker token out of files. agent-deck reads it from the macOS Keychain:
+The controller reaches the tracker through the tools of its Claude Code session, for example the Atlassian connector. agent-deck stores no tracker token.
 
-```sh
-security add-generic-password -s agent-deck-jira -a "$USER" -w
-```
+The queue file is `~/.config/herdr-app/data/agent-deck/queue.json`. `skills/deck-next/SKILL.md` gives its format.
 
 ## Requirements
 
