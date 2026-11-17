@@ -47,6 +47,12 @@ for node_id, view in (("agent-deck-queue", "queue"), ("agent-deck", "repos")):
     block = {"id": node_id, "type": "block", "content": {"mod": "agent-deck", "props": {"view": view}}, "size": {"weight": 2}}
     lists["children"].insert(1, block)
     added.append(view)
+# The settings row goes just above Herdr's own Settings row.
+side = find(doc, "sidebar")
+if side is not None and not find(doc, "agent-deck-link"):
+    at = next((i for i, c in enumerate(side["children"]) if c.get("id") == "sidebar-footer"), len(side["children"]))
+    side["children"].insert(at, {"id": "agent-deck-link", "type": "block", "content": {"mod": "agent-deck", "props": {"view": "link"}}, "size": {"px": 34}})
+    added.append("link")
 if added:
     with open(path, "w") as f:
         json.dump(doc, f, indent=2, ensure_ascii=False)

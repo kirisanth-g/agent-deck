@@ -33,7 +33,7 @@ Controller (a Claude session)  ->  queue file  ->  Queue panel  ->  you approve 
 ./install.sh
 ```
 
-The script links the mod into `~/.config/herdr-app/mods/`, adds the two panels to a personal layout named `deck`, and links the `deck-next` skill into `~/.claude/skills/`. Herdr does not allow a structure change on a shipped layout, so the script clones `main`.
+The script links the mod into `~/.config/herdr-app/mods/`, adds the two panels and the settings row to a personal layout named `deck`, and links the `deck-next` skill into `~/.claude/skills/`. Herdr does not allow a structure change on a shipped layout, so the script clones `main`.
 
 Run the script again after you change the mod. It restarts the panels.
 
@@ -56,7 +56,7 @@ config.example.json   an example of ~/.config/agent-deck/config.json
 
 agent-deck reads `~/.config/agent-deck/config.json`. Start from `config.example.json`. The file is optional, and it stays outside this repository.
 
-The **Settings** button on the Queue panel opens a dialog that edits this file. Herdr's own Settings window has no place for a mod, so agent-deck has its own.
+The **agent-deck settings** row in the sidebar, above Herdr's Settings row, opens a dialog that edits this file. Herdr's own Settings window has no place for a mod, so agent-deck has its own.
 
 | Key | Use |
 | --- | --- |
