@@ -99,7 +99,11 @@ export async function approve(p) {
     }
 
     const [first, ...rest] = places;
-    const task = String(cfg.agent?.task ?? DEFAULT_TASK).replaceAll("{ticket}", p.key);
+    // A start skill makes its own worktree unless it is told that one exists.
+    const where = `The workspace exists: do not create a worktree or a branch. `
+      + `This folder is the ${first.name} worktree on branch ${p.branch}.`
+      + (rest.length ? ` The other worktrees of this ticket: ${rest.map((r) => `${r.name} at ${r.path}`).join(", ")}.` : "");
+    const task = `${String(cfg.agent?.task ?? DEFAULT_TASK).replaceAll("{ticket}", p.key)}\n\n${where}`;
     // The first message goes before --add-dir: that flag takes every word after it as a folder.
     const argv = ["claude", task, ...(rest.length ? ["--add-dir", ...rest.map((r) => r.path)] : [])];
     const made = await make("space.new", { name: p.key, folder: first.path, tab: first.name, argv, focus: false });
@@ -243,7 +247,9 @@ export class Queue {
     return v_flex().id("agent-deck-queue").size_full().bg(t.chrome).p(8).gap(8).text_size(12.5).overflow_y_scrollbar()
       .child(h_flex().px(4).items_center().justify_between()
         .child(div().text_color(t.muted).child("Queue"))
-        .child(button(t, "find-next", "Find next work", false, (cx) => this.findNext(cx))))
+        .child(h_flex().gap(6)
+          .child(button(t, "open-settings", "Settings", false, () => { openOverlay({ mod: "agent-deck", props: { view: "settings" }, kind: "dialog", width: 640, height: 600 }); }))
+          .child(button(t, "find-next", "Find next work", false, (cx) => this.findNext(cx)))))
       .when(Boolean(this.error), (el) => el.child(div().text_color(t.blocked).child(this.error)))
       .when(!this.error && open.length === 0, (el) => el.child(div().px(4).text_color(t.dim).child("No proposals. Press Find next work.")))
       .children(open.map(proposed))

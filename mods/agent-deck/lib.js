@@ -1,29 +1,45 @@
 // Shared by the Repos view and the Queue view: the config file, the repos and their worktrees.
 
-import { exec, spaces, panes, home, readTextFile } from "herdr";
+import { exec, spaces, panes, home, readTextFile, writeTextFile } from "herdr";
 
 const CONFIG = ".config/agent-deck/config.json";
 
 export const out = (r) => (r.stdout ?? "").trim();
 
 // The config file is optional. A file that is not valid JSON is an error the panel shows.
-export async function config() {
+// Resolves with { raw, cfg }. `raw` is the snapshot a write must match.
+export async function readConfig() {
   const raw = await readTextFile(`${home()}/${CONFIG}`);
-  if (raw === null) return {};
-  try { return JSON.parse(raw); } catch { throw new Error(`~/${CONFIG} is not valid JSON.`); }
+  if (raw === null) return { raw, cfg: {} };
+  try { return { raw, cfg: JSON.parse(raw) }; } catch { throw new Error(`~/${CONFIG} is not valid JSON.`); }
 }
+
+export const config = async () => (await readConfig()).cfg;
+
+// Replaces the config file. The write fails if the file changed after `raw` was read.
+export async function writeConfig(cfg, raw) {
+  await exec("mkdir", ["-p", `${home()}/${CONFIG}`.replace(/\/[^/]+$/, "")]);
+  await writeTextFile(`${home()}/${CONFIG}`, `${JSON.stringify(cfg, null, 2)}\n`, raw);
+}
+
+// The repos that wt knows: [{ name, path, wt: true }].
+export async function wtRepos() {
+  const r = await exec("wt", ["repo", "ls"]);
+  return r.code !== 0 ? [] : out(r).split("\n").slice(1)
+    .map((line) => line.trim().split(/\s+/))
+    .filter((cols) => cols.length >= 2 && cols[1].startsWith("/"))
+    .map(([name, path]) => ({ name, path, wt: true }));
+}
+
+export const expand = (path) => String(path).replace(/^~(?=\/|$)/, home()).replace(/\/+$/, "");
 
 // `wt repo ls` prints a table: name, path, domain, ports. The first line is the header.
 // A repo that wt does not know has `wt: false`: its worktrees are made with git alone.
 export async function repos() {
   const { add = [], hide = [] } = (await config()).repos ?? {};
-  const r = await exec("wt", ["repo", "ls"]);
-  const list = r.code !== 0 ? [] : out(r).split("\n").slice(1)
-    .map((line) => line.trim().split(/\s+/))
-    .filter((cols) => cols.length >= 2 && cols[1].startsWith("/"))
-    .map(([name, path]) => ({ name, path, wt: true }));
+  const list = await wtRepos();
   for (const entry of add) {
-    const path = String(entry).replace(/^~(?=\/|$)/, home()).replace(/\/+$/, "");
+    const path = expand(entry);
     if (!list.some((repo) => repo.path === path)) list.push({ name: path.split("/").pop(), path, wt: false });
   }
   return list.filter((repo) => !hide.includes(repo.name));

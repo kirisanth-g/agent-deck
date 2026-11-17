@@ -3,7 +3,7 @@
 
 import { div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
-import { run, theme, notify, checking } from "herdr";
+import { run, theme, notify, checking, nextCommand } from "herdr";
 import { repos, checkouts, spaceOf, makeWorktree } from "./lib.js";
 
 export class Repos {
@@ -19,6 +19,13 @@ export class Repos {
     if (checking()) return;
     cx.timer.every(15000, (cx) => this.refresh(cx));
     this.refresh(cx);
+    // The Settings dialog sends a command after it changes the repo list.
+    cx.spawn(async (cx) => {
+      for (;;) {
+        await nextCommand();
+        this.refresh(cx);
+      }
+    });
   }
 
   refresh(cx) {

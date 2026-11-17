@@ -56,12 +56,14 @@ config.example.json   an example of ~/.config/agent-deck/config.json
 
 agent-deck reads `~/.config/agent-deck/config.json`. Start from `config.example.json`. The file is optional, and it stays outside this repository.
 
+The **Settings** button on the Queue panel opens a dialog that edits this file. Herdr's own Settings window has no place for a mod, so agent-deck has its own.
+
 | Key | Use |
 | --- | --- |
 | `tracker.candidateJql` | The search the controller runs for candidate tickets. |
 | `repos.add`, `repos.hide` | Repo folders to add to the Repos list, and repo names to hide. |
 | `controller.folder` | The folder the controller session starts in. Default: your home folder. |
-| `agent.task` | The first message of a ticket session. `{ticket}` is the ticket key. Default: `/ticket-start {ticket}`. |
+| `agent.task` | The first message of a ticket session. `{ticket}` is the ticket key. Default: `/ticket-start {ticket}`. agent-deck adds a note that the worktrees exist, so the session does not make them again. |
 | `agent.maxParallel` | The cap on ticket sessions that run at once. Default: 3. |
 | `agent.acceptTrust` | `true`: answer "Yes" on Claude Code's trust screen for a worktree that agent-deck just made. Default: off. |
 
