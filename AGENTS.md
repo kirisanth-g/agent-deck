@@ -77,6 +77,7 @@ Each of these cost time once. Keep them in mind.
 - **Claude Code asks about trust in a new git folder that carries its own pre-approvals.** A worktree with a copied `.claude/settings.local.json` is one. A session that waits there reports no status to Herdr. `agent.acceptTrust` answers the question, only for a worktree made in the same run.
 - **`wt new` refuses a repo it does not know.** For such a repo, `gitWorktree()` makes the worktree in the same `<repo>.worktrees/<branch>` place.
 - **A start skill makes its own worktree.** The first message of a ticket session says that the worktrees exist.
+- **The controller obeys any message typed into it.** It starts in a folder above the repos, so it can reach all of them. `CONTROLLER_ROLE` in `queue.js` limits it to proposals. Keep that text and the rules in the skill in step.
 - **`writeTextFile` needs the snapshot.** Pass the text you last read as `expected`. The write fails if the file changed, which protects the controller's writes.
 
 ## Rules for this repo

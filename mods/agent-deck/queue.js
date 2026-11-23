@@ -8,6 +8,11 @@ import { exec, run, spaces, panes, theme, notify, checking, home, appHome, readT
 import { config, repos, checkouts, makeWorktree, make, out } from "./lib.js";
 
 const CONTROLLER = "Controller";
+// The controller can reach every repo, so a message typed there by mistake must not start work.
+const CONTROLLER_ROLE = "You are the agent-deck controller. You only propose tickets, with the deck-next skill, and answer questions about the queue. "
+  + "Do not edit files, commit, push, rebase, change a ticket or change a pull request, except to write the agent-deck queue file. "
+  + "When a message asks for work on a ticket, a branch or a pull request, do not do it. "
+  + "Say that this is the controller, and name the Herdr space of that ticket if you know it.";
 const DEFAULT_TASK = "/ticket-start {ticket}";
 const DEFAULT_CAP = 3;
 
@@ -183,7 +188,7 @@ export class Queue {
         } else {
           const cfg = await config();
           const folder = String(cfg.controller?.folder ?? "~").replace(/^~(?=\/|$)/, home());
-          run("space.new", { name: CONTROLLER, folder, argv: ["claude"], task: "/deck-next" });
+          run("space.new", { name: CONTROLLER, folder, argv: ["claude", "/deck-next", "--append-system-prompt", CONTROLLER_ROLE] });
         }
       } catch (err) {
         notify({ title: "Find next work failed", body: message(err), level: "error" });

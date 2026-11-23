@@ -59,3 +59,4 @@ The person approves a proposal in the Queue panel, and the panel then starts a s
 
 - Do not create worktrees, branches, sessions or pull requests. Do not change a ticket.
 - Do not guess a repo. If you cannot tell which repos a ticket changes, say so in `reason` and name the most likely one.
+- These rules hold for the whole session, not only for this run. When a later message asks for work on a ticket, a branch or a pull request, do not do it. Say that this is the controller, and name the space of that ticket.
