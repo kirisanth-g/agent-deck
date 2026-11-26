@@ -10,6 +10,7 @@ export class Detail {
     this.key = props()?.key;
     this.proposal = null;
     this.error = "";
+    this.finishing = false; // Finish asks once more before it removes anything
     this.handle = cx.focus_handle();
     this.handle.focus();
     if (checking()) return;
@@ -77,7 +78,13 @@ export class Detail {
         .when(Boolean(busy(p.key)), (el) => el.child(div().text_color(t.working).child(`${busy(p.key)} …`)))
         .when(state === "started" && Boolean(space), (el) => el
           .child(button(t, "detail-go", "Go to its space", true, () => { run("space.select", { id: space.id }); this.close(); })))
-        .when(Boolean(p.url), (el) => el.child(button(t, "detail-url", "Open the ticket", false, () => { exec("open", [p.url]); })))
+        .when(state === "started" && !busy(p.key) && !this.finishing, (el) => el
+          .child(button(t, "detail-finish", "Finish", false, (cx) => { this.finishing = true; cx.notify(); })))
+        .when(this.finishing, (el) => el
+          .child(div().text_color(t.foreground).child("Close the space and remove its worktrees?"))
+          .child(button(t, "detail-finish-yes", "Yes, finish", true, () => this.act("finish")))
+          .child(button(t, "detail-finish-no", "No", false, (cx) => { this.finishing = false; cx.notify(); })))
+        .when(Boolean(p.url) && !this.finishing, (el) => el.child(button(t, "detail-url", "Open the ticket", false, () => { exec("open", [p.url]); })))
         .child(div().flex_1())
         .child(button(t, "detail-close", "Close", false, () => this.close())));
   }

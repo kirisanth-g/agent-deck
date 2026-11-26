@@ -4,9 +4,12 @@
 
 import { div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { exec, run, spaces, panes, theme, notify, checking, home, appHome, readTextFile, writeTextFile, watchFolder, openOverlay, shared, setShared, nextCommand } from "herdr";
+import { exec, run, spaces, panes, theme, notify, checking, home, readTextFile, writeTextFile, watchFolder, openOverlay, shared, setShared, nextCommand } from "herdr";
 import { config, repos, checkouts, makeWorktree, make, out } from "./lib.js";
-import { openSettings } from "./link.js";
+import { openSettings } from "./row.js";
+import { dir, file, saved, readQueue, proposalFor, ticketsOf, label } from "./store.js";
+
+export { dir, readQueue, proposalFor, ticketsOf, label };
 
 const CONTROLLER = "Controller";
 // The controller can reach every repo, so a message typed there by mistake must not start work.
@@ -20,15 +23,13 @@ const DEFAULT_CAP = 3;
 const BUSY = "agent-deck.busy"; // shared by every view: ticket key -> what runs for it now
 // A dialog closes before its work can finish, and Herdr cancels the work of a closed view.
 // So a dialog leaves a request here, and the Queue view, which stays open, does the work.
-const REQUEST = "agent-deck.request"; // { key, action: "approve" | "skip" | "split" } or null
+const REQUEST = "agent-deck.request"; // { key, action: "approve" | "skip" | "split" | "finish" } or null
 
 export function request(key, action) {
   setShared(REQUEST, { key, action });
   run("agent-deck.request");
 }
 
-export const dir = () => `${appHome()}/data/agent-deck`;
-const file = () => `${dir()}/queue.json`;
 export const message = (err) => (err instanceof Error ? err.message : String(err));
 
 export const busy = (key) => (shared(BUSY) ?? {})[key];
@@ -38,18 +39,7 @@ function setBusy(key, what) {
   setShared(BUSY, next);
 }
 
-// The tickets of a proposal. A bundle holds two or more: one space and one session do them in order.
-export const ticketsOf = (p) => (Array.isArray(p.tickets) && p.tickets.length > 1 ? p.tickets : [{ key: p.key, title: p.title, url: p.url }]);
-export const label = (p) => (ticketsOf(p).length > 1 ? `${p.key} +${ticketsOf(p).length - 1}` : p.key);
-
 export const spaceFor = (key) => spaces().find((s) => s.named && s.name === key);
-
-// Reads the queue file: { raw, queue }. `raw` is the snapshot a write must match.
-export async function readQueue() {
-  const raw = await readTextFile(file());
-  const parsed = raw === null ? {} : JSON.parse(raw);
-  return { raw, queue: { ...parsed, proposals: Array.isArray(parsed.proposals) ? parsed.proposals : [] } };
-}
 
 // Sets one proposal's state in the file. The write fails if the controller changed the file meanwhile.
 export async function mark(key, state) {
@@ -73,20 +63,9 @@ export async function split(p) {
   }
 }
 
-// The controller removes a started entry when its work is merged. The saved copy keeps
-// the proposal for as long as the person wants to read it.
-const saved = (key) => `${dir()}/tickets/${key}.json`;
 async function save(p) {
   await exec("mkdir", ["-p", `${dir()}/tickets`]);
   await writeTextFile(saved(p.key), `${JSON.stringify({ ...p, state: "started" }, null, 2)}\n`, await readTextFile(saved(p.key)));
-}
-
-// The proposal for a key: from the queue, or else the copy saved at Approve. Null when neither has it.
-export async function proposalFor(key) {
-  const live = (await readQueue()).queue.proposals.find((p) => p.key === key);
-  if (live) return live;
-  const raw = await readTextFile(saved(key));
-  return raw === null ? null : JSON.parse(raw);
 }
 
 const pause = (ms) => exec("sleep", [String(ms / 1000)]);
@@ -173,6 +152,46 @@ export async function approve(p) {
   setBusy(p.key, null);
 }
 
+// Closes the space of a ticket and removes its worktrees. The branches stay.
+// It stops before it closes anything when a worktree holds changes that are not committed.
+export async function finish(p) {
+  if (busy(p.key)) return;
+  setBusy(p.key, "finishing");
+  try {
+    const known = await repos();
+    const places = [];
+    for (const name of p.repos ?? []) {
+      const repo = known.find((r) => r.name === name);
+      if (!repo) continue;
+      const at = (await checkouts(repo)).find((c) => !c.main && c.path.endsWith(`.worktrees/${p.branch}`));
+      if (!at) continue;
+      const state = await exec("git", ["status", "--porcelain"], { cwd: at.path });
+      if (state.code !== 0 || out(state)) throw new Error(`The ${name} worktree has changes that are not committed. Commit or discard them, then finish again.`);
+      places.push({ repo, at });
+    }
+    const space = spaceFor(p.key);
+    if (space) {
+      await make("space.close", { id: space.id, confirmed: true });
+      await pause(1500);
+    }
+    for (const { repo, at } of places) {
+      setBusy(p.key, `removing the ${repo.name} worktree`);
+      // wt rm also keeps the session history and removes the dev host. It forces, so the check above matters.
+      const r = repo.wt
+        ? await exec("wt", ["rm", p.branch], { cwd: repo.path, timeout: 120000 })
+        : await exec("git", ["worktree", "remove", at.path], { cwd: repo.path });
+      if (r.code !== 0) throw new Error((r.stderr ?? "").trim() || out(r) || `The ${repo.name} worktree was not removed.`);
+    }
+    const { raw, queue } = await readQueue();
+    const proposals = queue.proposals.filter((q) => q.key !== p.key);
+    await writeTextFile(file(), `${JSON.stringify({ ...queue, proposals }, null, 2)}\n`, raw);
+    notify({ title: `${label(p)} finished`, body: `${places.length} worktree${places.length === 1 ? "" : "s"} removed. The branches stay.`, level: "success" });
+  } catch (err) {
+    notify({ title: `${label(p)} did not finish`, body: message(err), level: "error" });
+  }
+  setBusy(p.key, null);
+}
+
 export async function skip(p) {
   try { await mark(p.key, "skipped"); } catch (err) { notify({ title: "Skip failed", body: message(err), level: "error" }); }
 }
@@ -253,7 +272,7 @@ export class Queue {
     if (!asked) return;
     setShared(REQUEST, null);
     const p = this.queue.proposals.find((q) => q.key === asked.key);
-    if (p) this.act({ skip, split }[asked.action] ?? approve, p, cx);
+    if (p) this.act({ skip, split, finish }[asked.action] ?? approve, p, cx);
   }
 
   act(what, p, cx) {
@@ -302,7 +321,7 @@ export class Queue {
         .on_click(() => { if (space) run("space.select", { id: space.id }); })
         .child(div().w(6).h(6).rounded(3).bg(space ? t.accent : t.border))
         .child(div().text_color(space ? t.foreground : t.muted).child(label(p)))
-        .child(div().flex_1().truncate().text_color(t.dim).child(space ? (p.title ?? "") : "space closed"))
+        .child(div().flex_1().truncate().text_color(t.dim).child(busy(p.key) ? `${busy(p.key)} …` : space ? (p.title ?? "") : "space closed"))
         .child(button(t, `info-${p.key}`, "Details", false, () => this.details(p)));
     };
 

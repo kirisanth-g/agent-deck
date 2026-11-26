@@ -22,6 +22,10 @@ Controller (a Claude session)  ->  queue file  ->  Queue panel  ->  you approve 
 
 **Queue** lists the proposals and the tickets in progress. A click on a ticket in progress goes to its space, and **Details** shows its proposal again. agent-deck saves the proposal at Approve, so it stays after the controller takes the ticket off the queue.
 
+**Finish**, in the details of a ticket in progress, closes its space and removes its worktrees. It asks once more first, it keeps the branches, and it refuses when a worktree has changes that are not committed.
+
+A Ctrl/Cmd-click on a ticket address (`.../browse/ABC-123`) in a terminal shows the proposal, when agent-deck has one for that ticket. Any other ticket opens in the browser as before.
+
 The command palette has three entries: **agent-deck: Find next work**, **agent-deck: Ticket details of this space** and **agent-deck: Settings**.
 
 **Repos** lists your repos and their worktrees. The repos are the ones registered with [`wt`](#requirements), plus `repos.add` and minus `repos.hide` from the config file.

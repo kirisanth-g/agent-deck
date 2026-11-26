@@ -18,7 +18,9 @@ mods/agent-deck/
   lib.js        the config file, the repos, the worktrees, app commands
   repos.js      Repos view (in the layout)
   queue.js      Queue view (in the layout), and the approve / skip logic
-  link.js       the settings row in the sidebar (in the layout)
+  row.js        the settings row in the sidebar (in the layout)
+  store.js      the queue file and the saved proposals; no view code
+  link.js       the link handler: a click on a ticket address shows its proposal
   detail.js     one proposal, as a dialog
   settings.js   the config file, as a dialog
   mod.json
@@ -80,6 +82,8 @@ Each of these cost time once. Keep them in mind.
 - **A start skill makes its own worktree.** The first message of a ticket session says that the worktrees exist.
 - **The controller obeys any message typed into it.** It starts in a folder above the repos, so it can reach all of them. `CONTROLLER_ROLE` in `queue.js` limits it to proposals. Keep that text and the rules in the skill in step.
 - **A bundle is one proposal with a `tickets` list.** Its `key` and `branch` are those of the first ticket, so the space, the busy label and the queue state need no second case. Read the tickets with `ticketsOf()`.
+- **Herdr loads `link.js` for a link click, with no view.** The name is fixed. It imports only `herdr` and `store.js`; keep view code out of both.
+- **`wt rm` forces.** `finish()` checks each worktree for changes that are not committed before it closes or removes anything. Keep that check first.
 - **`writeTextFile` needs the snapshot.** Pass the text you last read as `expected`. The write fails if the file changed, which protects the controller's writes.
 
 ## Rules for this repo

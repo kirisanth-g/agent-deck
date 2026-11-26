@@ -7,7 +7,7 @@ import { Repos } from "./repos.js";
 import { Queue } from "./queue.js";
 import { Detail } from "./detail.js";
 import { Settings } from "./settings.js";
-import { Link } from "./link.js";
+import { Link } from "./row.js";
 
 export default class AgentDeck extends View {
   init(_props, cx) {
