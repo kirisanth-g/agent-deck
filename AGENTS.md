@@ -78,6 +78,7 @@ Each of these cost time once. Keep them in mind.
 - **`wt new` refuses a repo it does not know.** For such a repo, `gitWorktree()` makes the worktree in the same `<repo>.worktrees/<branch>` place.
 - **A start skill makes its own worktree.** The first message of a ticket session says that the worktrees exist.
 - **The controller obeys any message typed into it.** It starts in a folder above the repos, so it can reach all of them. `CONTROLLER_ROLE` in `queue.js` limits it to proposals. Keep that text and the rules in the skill in step.
+- **A bundle is one proposal with a `tickets` list.** Its `key` and `branch` are those of the first ticket, so the space, the busy label and the queue state need no second case. Read the tickets with `ticketsOf()`.
 - **`writeTextFile` needs the snapshot.** Pass the text you last read as `expected`. The write fails if the file changed, which protects the controller's writes.
 
 ## Rules for this repo

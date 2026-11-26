@@ -19,7 +19,7 @@ const DEFAULT_CAP = 3;
 const BUSY = "agent-deck.busy"; // shared by every view: ticket key -> what runs for it now
 // A dialog closes before its work can finish, and Herdr cancels the work of a closed view.
 // So a dialog leaves a request here, and the Queue view, which stays open, does the work.
-const REQUEST = "agent-deck.request"; // { key, action: "approve" | "skip" } or null
+const REQUEST = "agent-deck.request"; // { key, action: "approve" | "skip" | "split" } or null
 
 export function request(key, action) {
   setShared(REQUEST, { key, action });
@@ -37,6 +37,10 @@ function setBusy(key, what) {
   setShared(BUSY, next);
 }
 
+// The tickets of a proposal. A bundle holds two or more: one space and one session do them in order.
+export const ticketsOf = (p) => (Array.isArray(p.tickets) && p.tickets.length > 1 ? p.tickets : [{ key: p.key, title: p.title, url: p.url }]);
+export const label = (p) => (ticketsOf(p).length > 1 ? `${p.key} +${ticketsOf(p).length - 1}` : p.key);
+
 export const spaceFor = (key) => spaces().find((s) => s.named && s.name === key);
 
 // Reads the queue file: { raw, queue }. `raw` is the snapshot a write must match.
@@ -51,6 +55,21 @@ export async function mark(key, state) {
   const { raw, queue } = await readQueue();
   const proposals = queue.proposals.map((p) => (p.key === key ? { ...p, state } : p));
   await writeTextFile(file(), `${JSON.stringify({ ...queue, proposals }, null, 2)}\n`, raw);
+}
+
+// Turns a bundle back into one proposal for each ticket.
+export async function split(p) {
+  try {
+    const { raw, queue } = await readQueue();
+    const single = (q, tk) => ({
+      key: tk.key, title: tk.title, url: tk.url, reason: tk.reason ?? q.reason, repos: tk.repos ?? q.repos,
+      branch: tk.key, size: tk.size ?? q.size, details: tk.details ?? q.details, state: "proposed",
+    });
+    const proposals = queue.proposals.flatMap((q) => (q.key === p.key ? ticketsOf(q).map((tk) => single(q, tk)) : [q]));
+    await writeTextFile(file(), `${JSON.stringify({ ...queue, proposals }, null, 2)}\n`, raw);
+  } catch (err) {
+    notify({ title: "Split failed", body: message(err), level: "error" });
+  }
 }
 
 const pause = (ms) => exec("sleep", [String(ms / 1000)]);
@@ -104,11 +123,21 @@ export async function approve(p) {
     }
 
     const [first, ...rest] = places;
+    const keys = ticketsOf(p).map((tk) => tk.key);
+    const bundle = keys.length > 1;
     // A start skill makes its own worktree unless it is told that one exists.
-    const where = `The workspace exists: do not create a worktree or a branch. `
+    const where = `The workspace exists: do not create a worktree${bundle ? "" : " or a branch"}. `
       + `This folder is the ${first.name} worktree on branch ${p.branch}.`
-      + (rest.length ? ` The other worktrees of this ticket: ${rest.map((r) => `${r.name} at ${r.path}`).join(", ")}.` : "");
-    const task = `${String(cfg.agent?.task ?? DEFAULT_TASK).replaceAll("{ticket}", p.key)}\n\n${where}`;
+      + (rest.length ? ` The other worktrees: ${rest.map((r) => `${r.name} at ${r.path}`).join(", ")}.` : "");
+    // Each ticket of a bundle keeps its own pull request, so the branches form a stack.
+    const order = bundle
+      ? `\n\nThis space holds ${keys.length} related tickets. Do them in this order: ${keys.join(", ")}. `
+        + `Give each ticket its own branch and its own pull request. Branch ${p.branch} is for ${keys[0]}. `
+        + `Make the branch of each later ticket in these same worktrees, from the branch of the ticket before it, `
+        + `and set the base of its pull request to that branch, so the pull requests form a stack. `
+        + `Open the pull request of a ticket before you start the next ticket.`
+      : "";
+    const task = `${String(cfg.agent?.task ?? DEFAULT_TASK).replaceAll("{ticket}", keys.join(" "))}\n\n${where}${order}`;
     // The first message goes before --add-dir: that flag takes every word after it as a folder.
     const argv = ["claude", task, ...(rest.length ? ["--add-dir", ...rest.map((r) => r.path)] : [])];
     const made = await make("space.new", { name: p.key, folder: first.path, tab: first.name, argv, focus: false });
@@ -119,7 +148,7 @@ export async function approve(p) {
       await acceptTrust(made.terminal);
     }
     await mark(p.key, "started");
-    notify({ title: `${p.key} started`, body: places.map((x) => x.name).join(", "), level: "success", action: { name: "space.select", args: { id: made.space } } });
+    notify({ title: `${label(p)} started`, body: places.map((x) => x.name).join(", "), level: "success", action: { name: "space.select", args: { id: made.space } } });
   } catch (err) {
     notify({ title: `${p.key} did not start`, body: message(err), level: "error" });
   }
@@ -203,7 +232,7 @@ export class Queue {
     if (!asked) return;
     setShared(REQUEST, null);
     const p = this.queue.proposals.find((q) => q.key === asked.key);
-    if (p) this.act(asked.action === "skip" ? skip : approve, p, cx);
+    if (p) this.act({ skip, split }[asked.action] ?? approve, p, cx);
   }
 
   act(what, p, cx) {
@@ -219,13 +248,15 @@ export class Queue {
     const head = (p) => h_flex().gap(6).items_center()
       .child(div().id(`key-${p.key}`).font_semibold().text_color(t.accent)
         .when(Boolean(p.url), (el) => el.on_click((_e, cx) => { cx.stop_propagation(); exec("open", [p.url]); }))
-        .child(p.key))
+        .child(label(p)))
       .child(div().flex_1().truncate().text_color(t.foreground).child(p.title ?? ""));
+    const bundled = (p) => ticketsOf(p).length > 1;
 
     const proposed = (p) => v_flex().id(`card-${p.key}`).gap(3).p(8).rounded(7).bg(t.surface)
       .hover((s) => s.bg(t.raised))
       .on_click(() => this.details(p))
       .child(head(p))
+      .when(bundled(p), (el) => el.child(div().text_color(t.foreground).child(`One space, in order: ${ticketsOf(p).map((tk) => tk.key).join(", ")}`)))
       .when(Boolean(p.reason), (el) => el.child(div().text_color(t.muted).child(p.reason.length > 96 ? `${p.reason.slice(0, 96).trimEnd()}…` : p.reason)))
       .child(div().text_color(t.dim).child([...(p.repos ?? []), p.size].filter(Boolean).join(" · ")))
       .child(busy(p.key)
@@ -233,6 +264,7 @@ export class Queue {
         : h_flex().gap(6)
           .child(button(t, `ok-${p.key}`, "Approve", true, (cx) => this.act(approve, p, cx)))
           .child(button(t, `no-${p.key}`, "Skip", false, (cx) => this.act(skip, p, cx)))
+          .when(bundled(p), (el) => el.child(button(t, `split-${p.key}`, "Split", false, (cx) => this.act(split, p, cx))))
           .child(button(t, `more-${p.key}`, "Details", false, () => this.details(p))));
 
     const started = (p) => {
@@ -241,7 +273,7 @@ export class Queue {
         .hover((s) => s.bg(t.hover))
         .on_click(() => { if (space) run("space.select", { id: space.id }); })
         .child(div().w(6).h(6).rounded(3).bg(space ? t.accent : t.border))
-        .child(div().text_color(space ? t.foreground : t.muted).child(p.key))
+        .child(div().text_color(space ? t.foreground : t.muted).child(label(p)))
         .child(div().flex_1().truncate().text_color(t.dim).child(space ? (p.title ?? "") : "space closed"));
     };
 

@@ -14,6 +14,8 @@ Controller (a Claude session)  ->  queue file  ->  Queue panel  ->  you approve 
 
 1. **Find next work.** The button on the Queue panel starts the controller, a Claude Code session that runs the `deck-next` skill. The controller reads the tracker, drops the tickets that are in flight or blocked, and writes its proposals to the queue file.
 2. **Approve or skip.** Each proposal shows the ticket, the reason it is next, and the repos it changes. Nothing starts without **Approve**.
+
+   The controller puts two or three closely related tickets of one epic in one proposal, a **bundle**. One space and one session do them in order, and each ticket gets its own pull request, stacked on the one before. **Split** turns a bundle back into one proposal for each ticket.
 3. **Start.** On Approve, agent-deck makes a worktree in each repo of the ticket. It opens one space named after the ticket, with a tab for each repo, and starts one Claude Code session there. The session gets the other worktrees with `--add-dir`, so it sees every repo of the ticket.
 
 ## The panels
