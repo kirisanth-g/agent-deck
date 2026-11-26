@@ -1,1 +1,10 @@
-{ "place": "left", "size": 260, "title": "Repos" }
+{
+  "place": "left",
+  "size": 260,
+  "title": "Repos",
+  "palette": [
+    { "title": "agent-deck: Find next work", "command": "agent-deck.find-next", "words": "queue tickets controller" },
+    { "title": "agent-deck: Ticket details of this space", "command": "agent-deck.ticket", "words": "proposal plan" },
+    { "title": "agent-deck: Settings", "command": "agent-deck.settings", "words": "config repos" }
+  ]
+}

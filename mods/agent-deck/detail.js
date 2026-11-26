@@ -3,7 +3,7 @@
 import { div } from "gpui-kit";
 import { v_flex, h_flex, TextView } from "gpui-base";
 import { exec, run, theme, props, closeOverlay, checking } from "herdr";
-import { readQueue, request, busy, spaceFor, ticketsOf, label, button, message } from "./queue.js";
+import { proposalFor, request, busy, spaceFor, ticketsOf, label, button, message } from "./queue.js";
 
 export class Detail {
   init(cx) {
@@ -15,8 +15,8 @@ export class Detail {
     if (checking()) return;
     cx.spawn(async (cx) => {
       try {
-        this.proposal = (await readQueue()).queue.proposals.find((p) => p.key === this.key) ?? null;
-        if (!this.proposal) this.error = `${this.key} is not in the queue now.`;
+        this.proposal = await proposalFor(this.key);
+        if (!this.proposal) this.error = `agent-deck has no proposal for ${this.key}.`;
       } catch (err) {
         this.error = message(err);
       }

@@ -33,6 +33,7 @@ Files outside the repo that the code reads or writes:
 | --- | --- |
 | `~/.config/agent-deck/config.json` | The person's settings. The Settings view writes it. |
 | `~/.config/herdr-app/data/agent-deck/queue.json` | The queue. The controller writes it; the Queue view sets `state`. |
+| `~/.config/herdr-app/data/agent-deck/tickets/<key>.json` | The proposal of a started ticket. Approve writes it; the Detail view reads it when the queue has no entry. |
 | `~/.config/herdr-app/layouts/deck.json` | The personal layout that holds the blocks. `install.sh` makes it. |
 
 ## Before you change the mod

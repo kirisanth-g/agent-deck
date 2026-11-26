@@ -6,6 +6,7 @@ import { div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { exec, run, spaces, panes, theme, notify, checking, home, appHome, readTextFile, writeTextFile, watchFolder, openOverlay, shared, setShared, nextCommand } from "herdr";
 import { config, repos, checkouts, makeWorktree, make, out } from "./lib.js";
+import { openSettings } from "./link.js";
 
 const CONTROLLER = "Controller";
 // The controller can reach every repo, so a message typed there by mistake must not start work.
@@ -70,6 +71,22 @@ export async function split(p) {
   } catch (err) {
     notify({ title: "Split failed", body: message(err), level: "error" });
   }
+}
+
+// The controller removes a started entry when its work is merged. The saved copy keeps
+// the proposal for as long as the person wants to read it.
+const saved = (key) => `${dir()}/tickets/${key}.json`;
+async function save(p) {
+  await exec("mkdir", ["-p", `${dir()}/tickets`]);
+  await writeTextFile(saved(p.key), `${JSON.stringify({ ...p, state: "started" }, null, 2)}\n`, await readTextFile(saved(p.key)));
+}
+
+// The proposal for a key: from the queue, or else the copy saved at Approve. Null when neither has it.
+export async function proposalFor(key) {
+  const live = (await readQueue()).queue.proposals.find((p) => p.key === key);
+  if (live) return live;
+  const raw = await readTextFile(saved(key));
+  return raw === null ? null : JSON.parse(raw);
 }
 
 const pause = (ms) => exec("sleep", [String(ms / 1000)]);
@@ -148,6 +165,7 @@ export async function approve(p) {
       await acceptTrust(made.terminal);
     }
     await mark(p.key, "started");
+    await save(p);
     notify({ title: `${label(p)} started`, body: places.map((x) => x.name).join(", "), level: "success", action: { name: "space.select", args: { id: made.space } } });
   } catch (err) {
     notify({ title: `${p.key} did not start`, body: message(err), level: "error" });
@@ -178,7 +196,10 @@ export class Queue {
     cx.timer.every(10000, (cx) => { this.load(cx); this.serve(cx); });
     cx.spawn(async (cx) => {
       for (;;) {
-        await nextCommand();
+        const command = String(await nextCommand());
+        if (command.endsWith("find-next")) this.findNext(cx);
+        if (command.endsWith("ticket")) this.ticket();
+        if (command.endsWith("settings")) openSettings();
         this.serve(cx);
       }
     });
@@ -243,6 +264,13 @@ export class Queue {
     openOverlay({ mod: "agent-deck", props: { view: "detail", key: p.key }, kind: "dialog", width: 620, height: 520 });
   }
 
+  // Shows the proposal of the space that the person is in. A ticket space has the name of its first ticket.
+  ticket() {
+    const space = spaces().find((s) => s.active);
+    if (space?.named) this.details({ key: space.name });
+    else notify({ title: "This space is not a ticket space", level: "warning" });
+  }
+
   render(_cx) {
     const t = theme();
     const head = (p) => h_flex().gap(6).items_center()
@@ -274,7 +302,8 @@ export class Queue {
         .on_click(() => { if (space) run("space.select", { id: space.id }); })
         .child(div().w(6).h(6).rounded(3).bg(space ? t.accent : t.border))
         .child(div().text_color(space ? t.foreground : t.muted).child(label(p)))
-        .child(div().flex_1().truncate().text_color(t.dim).child(space ? (p.title ?? "") : "space closed"));
+        .child(div().flex_1().truncate().text_color(t.dim).child(space ? (p.title ?? "") : "space closed"))
+        .child(button(t, `info-${p.key}`, "Details", false, () => this.details(p)));
     };
 
     const list = this.queue.proposals;

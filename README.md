@@ -20,7 +20,9 @@ Controller (a Claude session)  ->  queue file  ->  Queue panel  ->  you approve 
 
 ## The panels
 
-**Queue** lists the proposals and the tickets in progress. A click on a ticket in progress goes to its space.
+**Queue** lists the proposals and the tickets in progress. A click on a ticket in progress goes to its space, and **Details** shows its proposal again. agent-deck saves the proposal at Approve, so it stays after the controller takes the ticket off the queue.
+
+The command palette has three entries: **agent-deck: Find next work**, **agent-deck: Ticket details of this space** and **agent-deck: Settings**.
 
 **Repos** lists your repos and their worktrees. The repos are the ones registered with [`wt`](#requirements), plus `repos.add` and minus `repos.hide` from the config file.
 
